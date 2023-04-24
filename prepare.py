@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
+from env import username, password, host 
 # --------------- FOR opsd_germany_daily DATA ------------------
 
 def acquire_opsd_germany_daily():
@@ -41,9 +41,8 @@ def univariate_viz(df):
     for col in df.columns:
         print(f'Univariate Visualization of {col}')
         plt.hist(df[col], color='violet', edgecolor='black')
-        plt.axhline(df[col].mean())
+        plt.axvline(df[col].mean())
         plt.show()
-
 
 def aqcuire_store_data():
 
@@ -53,21 +52,45 @@ def aqcuire_store_data():
     else:
         print(f'Please download the CSV file and save it locally. Once saved as \'tsa_store_data.csv\', please rerun this function')
 
+def get_db_url(database):
+    return f'mysql+pymysql://{username}:{password}@{host}/{database}'
+
+def get_store_data():
+   
+    query = '''
+    SELECT *
+    FROM items
+    JOIN sales USING(item_id)
+    JOIN stores USING(store_id) 
+    '''
+    
+    df = pd.read_sql(query, get_db_url('tsa_item_demand'))
+    
+    df.to_csv('tsa_item_demand.csv', index=False)
+    
+    return df
+
+def wrangle_store_data():
+    filename = 'tsa_item_demand.csv'
+    
+    if os.path.isfile(filename):
+        df = pd.read_csv(filename, index_col=0)
+    else:
+        df = get_store_data()
+        
+    return df
+
 def prepare_store_data():
 
-    df = aqcuire_store_data()
-
-    df = df.drop(columns='Unnamed: 0')
-
-    df['sale_date'] = df['sale_date'].str.replace(' 00:00:00 GMT', '')
+    df = wrangle_store_data()
 
     df['sale_date'] = pd.to_datetime(df.sale_date)
 
     df = df.set_index('sale_date').sort_index()
 
-    df['month'] = df.index.month
+    df['month'] = df.index.month_name()
 
-    df['day_of_week'] = df.index.day_of_week
+    df['day_of_week'] = df.index.day_name()
 
     df['sales_total'] = df.sale_amount * df.item_price
 
